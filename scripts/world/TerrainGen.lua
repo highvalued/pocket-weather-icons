@@ -14,8 +14,8 @@ local G = {}
 
 G.SEA_Y = -12
 G.PLAIN_Y = 1
-G.SPAWN_ISLAND = Vector3.new(250, 1, 0)
-G.SECRET_ISLET = Vector3.new(-282, 1, 44)
+G.SPAWN_ISLAND = Vector3.new(300, 1, 0)
+G.SECRET_ISLET = Vector3.new(-330, 1, 44)
 G.POND = Vector3.new(-40, 0, -146)
 G.WATERFALL_X = -40
 G.TIER1_Z = -128
@@ -23,8 +23,8 @@ G.TIER2_Z = -160
 G.STEPPING = {} :: { Vector3 }
 
 local CELL = 4
-local X0, X1 = -320, 320
-local Z0, Z1 = -340, 320
+local X0, X1 = -380, 380
+local Z0, Z1 = -360, 330
 local Y0, Y1 = -48, 112
 local SEED = 7.31
 
@@ -40,7 +40,7 @@ end
 
 -- stepping stones from the west village shore to the secret islet
 do
-	local from, to = Vector3.new(-176, 1, 30), G.SECRET_ISLET
+	local from, to = Vector3.new(-206, 1, 30), G.SECRET_ISLET
 	local n = 9
 	for i = 1, n do
 		local p = from:Lerp(to, i / (n + 1))
@@ -52,14 +52,14 @@ type Islet = { x: number, z: number, r: number, h: number, flat: boolean? }
 local ISLETS: { Islet } = {
 	{ x = G.SPAWN_ISLAND.X, z = G.SPAWN_ISLAND.Z, r = 34, h = G.PLAIN_Y, flat = true },
 	{ x = G.SECRET_ISLET.X, z = G.SECRET_ISLET.Z, r = 16, h = G.PLAIN_Y, flat = true },
-	{ x = 228, z = -150, r = 26, h = 12 },
-	{ x = 262, z = 140, r = 20, h = 8 },
-	{ x = -250, z = -110, r = 30, h = 16 },
-	{ x = -236, z = 176, r = 22, h = 9 },
-	{ x = 120, z = 262, r = 18, h = 6 },
-	{ x = -120, z = 268, r = 16, h = 5 },
-	{ x = 190, z = -286, r = 22, h = 14 },
-	{ x = -190, z = -296, r = 20, h = 12 },
+	{ x = 268, z = -160, r = 28, h = 14 },
+	{ x = 300, z = 150, r = 22, h = 8 },
+	{ x = -290, z = -120, r = 32, h = 18 },
+	{ x = -270, z = 190, r = 24, h = 9 },
+	{ x = 140, z = 280, r = 18, h = 6 },
+	{ x = -140, z = 284, r = 16, h = 5 },
+	{ x = 220, z = -300, r = 22, h = 14 },
+	{ x = -230, z = -310, r = 20, h = 12 },
 }
 G.ISLETS = ISLETS
 
@@ -70,7 +70,7 @@ local function pathAt(x: number, z: number): string?
 		return "plaza"
 	end
 	local w = 5
-	if math.abs(z) <= w and x > 0 and x < 175 then
+	if math.abs(z) <= w and x > 0 and x < 215 then
 		return "path" -- east: to the spawn bridge
 	end
 	if math.abs(x) <= w and z > 0 and z < 142 then
@@ -79,7 +79,7 @@ local function pathAt(x: number, z: number): string?
 	if math.abs(x) <= w and z < 0 and z > -112 then
 		return "path" -- north: to the river and waterfall
 	end
-	if math.abs(z) <= w and x < 0 and x > -150 then
+	if math.abs(z) <= w and x < 0 and x > -120 then
 		return "path" -- west: to the village
 	end
 	if z >= 136 and z <= 146 and math.abs(x) <= 112 then
@@ -107,17 +107,17 @@ local function landAt(x: number, z: number): (number, any)
 	local mat = M.Grass
 	local ax = math.abs(x)
 	-- east / west terraces (keep the east valley to the spawn bridge open)
-	local flankEdge = 122 + noise(x, z, 38, 1) * 8
+	local flankEdge = 130 + noise(x, z, 60, 1) * 16
 	if ax > flankEdge and not (x > 0 and math.abs(z) < 16) and z < 128 then
-		h = 10 + noise(x, z, 45, 2) * 3
-		local plateauEdge = 150 + noise(x, z, 30, 3) * 6
+		h = 10 + noise(x, z, 45, 2) * 4
+		local plateauEdge = 168 + noise(x, z, 45, 3) * 12
 		if ax > plateauEdge then
-			h = 20 + noise(x, z, 50, 4) * 4
+			h = 22 + noise(x, z, 50, 4) * 5 + math.max(0, noise(x, z, 26, 20) - 0.15) * 22
 		end
 	end
 	-- north: tier 1, tier 2, mountains
-	local e1 = G.TIER1_Z + noise(x, z, 40, 5) * 7
-	local e2 = G.TIER2_Z + noise(x, z, 34, 6) * 6
+	local e1 = G.TIER1_Z + noise(x, z, 55, 5) * 12
+	local e2 = G.TIER2_Z + noise(x, z, 45, 6) * 10
 	local canyon = x >= -54 and x <= -26
 	if z < e1 and not canyon then
 		h = math.max(h, 16 + noise(x, z, 30, 7) * 2)
@@ -147,7 +147,7 @@ end
 
 local function shoreT(x: number, z: number): number
 	local az = if z < 0 then 262 else 175
-	local ax = 178
+	local ax = 215
 	local s = ((math.abs(x) / ax) ^ 4 + (math.abs(z) / az) ^ 4) ^ 0.25 + noise(x, z, 60, 12) * 0.05
 	local t = smooth(0.93, 1.0, s)
 	-- straight-ish south shore at the plot bridges (z = 150)
@@ -289,6 +289,9 @@ function G.build(log: ((string) -> ())?)
 				for c = 1, sz do
 					local k = ck + c
 					local h, top, w = H[i][k], MAT[i][k], W[i][k]
+					-- measured: smooth terrain draws the surface 2 studs above the occupancy height
+					-- (full cells to y, then a top cell with o: surface = y + 2 + 4 * o)
+					h -= 2
 					local x = X0 + (i - 0.5) * CELL
 					local z = Z0 + (k - 0.5) * CELL
 					for b = 1, ny do
@@ -297,9 +300,9 @@ function G.build(log: ((string) -> ())?)
 						local m, o = M.Air, 0
 						if y0 < h then
 							o = math.clamp((h - y0) / CELL, 0, 1)
-							if h - y0 <= CELL then
-								m = top
-							elseif top == M.Grass and h - y0 <= CELL * 2 then
+							if h - y0 <= CELL * 2 then
+								m = top -- two cells, so a thin top cell never shows the layer under it
+							elseif top == M.Grass and h - y0 <= CELL * 3 then
 								m = M.Ground
 							elseif top == M.Sand and h - y0 <= CELL * 3 then
 								m = M.Sand
@@ -332,7 +335,7 @@ function G.build(log: ((string) -> ())?)
 		end
 	end
 	-- 4. open ocean outside the region (water only, sea floor at Y0)
-	local far = 700
+	local far = 1000
 	local seaTop = G.SEA_Y
 	local function fill(minV: Vector3, maxV: Vector3)
 		local size = maxV - minV
