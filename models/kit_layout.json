@@ -1,0 +1,272 @@
+{
+ "slot": 60,
+ "assets": {
+  "Fir_A": {
+   "x": 0,
+   "y": 0,
+   "parts": [
+    "Body",
+    "Snow"
+   ]
+  },
+  "Fir_B": {
+   "x": 60,
+   "y": 0,
+   "parts": [
+    "Body",
+    "Snow"
+   ]
+  },
+  "Fir_C": {
+   "x": 120,
+   "y": 0,
+   "parts": [
+    "Body",
+    "Snow"
+   ]
+  },
+  "Fir_D": {
+   "x": 180,
+   "y": 0,
+   "parts": [
+    "Body",
+    "Snow"
+   ]
+  },
+  "Oak_A": {
+   "x": 240,
+   "y": 0,
+   "parts": [
+    "Body",
+    "Snow"
+   ]
+  },
+  "Oak_B": {
+   "x": 300,
+   "y": 0,
+   "parts": [
+    "Body",
+    "Snow"
+   ]
+  },
+  "Oak_C": {
+   "x": 360,
+   "y": 0,
+   "parts": [
+    "Body",
+    "Snow"
+   ]
+  },
+  "Palm_A": {
+   "x": 420,
+   "y": 0,
+   "parts": [
+    "Body"
+   ]
+  },
+  "Palm_B": {
+   "x": 0,
+   "y": 60,
+   "parts": [
+    "Body"
+   ]
+  },
+  "Bush_A": {
+   "x": 60,
+   "y": 60,
+   "parts": [
+    "Body",
+    "Snow"
+   ]
+  },
+  "Bush_B": {
+   "x": 120,
+   "y": 60,
+   "parts": [
+    "Body",
+    "Snow"
+   ]
+  },
+  "Bush_C": {
+   "x": 180,
+   "y": 60,
+   "parts": [
+    "Body",
+    "Snow"
+   ]
+  },
+  "Flowers_A": {
+   "x": 240,
+   "y": 60,
+   "parts": [
+    "Body"
+   ]
+  },
+  "Flowers_B": {
+   "x": 300,
+   "y": 60,
+   "parts": [
+    "Body"
+   ]
+  },
+  "Grass_A": {
+   "x": 360,
+   "y": 60,
+   "parts": [
+    "Body"
+   ]
+  },
+  "Rock_A": {
+   "x": 420,
+   "y": 60,
+   "parts": [
+    "Body",
+    "Snow"
+   ]
+  },
+  "Rock_B": {
+   "x": 0,
+   "y": 120,
+   "parts": [
+    "Body",
+    "Snow"
+   ]
+  },
+  "Rock_C": {
+   "x": 60,
+   "y": 120,
+   "parts": [
+    "Body",
+    "Snow"
+   ]
+  },
+  "Rock_D": {
+   "x": 120,
+   "y": 120,
+   "parts": [
+    "Body",
+    "Snow"
+   ]
+  },
+  "House_A": {
+   "x": 180,
+   "y": 120,
+   "parts": [
+    "Body",
+    "Glow",
+    "Snow"
+   ]
+  },
+  "House_B": {
+   "x": 240,
+   "y": 120,
+   "parts": [
+    "Body",
+    "Glow",
+    "Snow"
+   ]
+  },
+  "House_C": {
+   "x": 300,
+   "y": 120,
+   "parts": [
+    "Body",
+    "Glow",
+    "Snow"
+   ]
+  },
+  "House_D": {
+   "x": 360,
+   "y": 120,
+   "parts": [
+    "Body",
+    "Glow",
+    "Snow"
+   ]
+  },
+  "Lamp_A": {
+   "x": 420,
+   "y": 120,
+   "parts": [
+    "Body",
+    "Glow",
+    "Snow"
+   ]
+  },
+  "PlotIsland": {
+   "x": 0,
+   "y": 180,
+   "parts": [
+    "Top",
+    "Cliff"
+   ]
+  },
+  "Sym_Sun": {
+   "x": 60,
+   "y": 180,
+   "parts": [
+    "Body"
+   ]
+  },
+  "Sym_Snowflake": {
+   "x": 120,
+   "y": 180,
+   "parts": [
+    "Body"
+   ]
+  },
+  "Sym_Bolt": {
+   "x": 180,
+   "y": 180,
+   "parts": [
+    "Body"
+   ]
+  },
+  "Sym_Wind": {
+   "x": 240,
+   "y": 180,
+   "parts": [
+    "Body"
+   ]
+  },
+  "GlobeRing": {
+   "x": 300,
+   "y": 180,
+   "parts": [
+    "Body"
+   ]
+  }
+ },
+ "tris": {
+  "Fir_A": 582,
+  "Fir_B": 474,
+  "Fir_C": 618,
+  "Fir_D": 330,
+  "Oak_A": 774,
+  "Oak_B": 590,
+  "Oak_C": 609,
+  "Palm_A": 544,
+  "Palm_B": 544,
+  "Bush_A": 557,
+  "Bush_B": 253,
+  "Bush_C": 632,
+  "Flowers_A": 522,
+  "Flowers_B": 464,
+  "Grass_A": 33,
+  "Rock_A": 134,
+  "Rock_B": 120,
+  "Rock_C": 135,
+  "Rock_D": 144,
+  "House_A": 3360,
+  "House_B": 3424,
+  "House_C": 3744,
+  "House_D": 3132,
+  "Lamp_A": 388,
+  "PlotIsland": 1120,
+  "Sym_Sun": 144,
+  "Sym_Snowflake": 374,
+  "Sym_Bolt": 30,
+  "Sym_Wind": 432,
+  "GlobeRing": 576
+ }
+}
