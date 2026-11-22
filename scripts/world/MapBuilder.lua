@@ -2,7 +2,7 @@
 -- Pocket Weather props and landmarks (edit-time builder; run after TerrainGen.build()).
 -- ServerStorage.WorldGen.MapBuilder.build() clears and rebuilds these folders in workspace.Map:
 --   WeatherTower, Plaza, Lamps, Boards, Village, SpawnIsland, GrandBridge, Waterfalls, Nature,
---   ThemeProps (Winter / Desert / Storm extras), Gems, NpcSpots, SkyClouds, Turbines
+--   ThemeProps (Winter / Desert / Storm extras), Gems, SkyClouds, Turbines
 -- It never touches workspace.Map.Bridges (plot bridges) or the player islands (built by Plots).
 -- Tags (CollectionService) the runtime scripts look for:
 --   OnlyWinter / OnlyDesert / OnlyStorm  hidden parts shown by WeatherWorld for that theme
@@ -10,7 +10,7 @@
 --   TowerOrb     the orb model             Spin     turbine / anemometer rotors (attribute Speed)
 --   Flag         waving flag model         Gem      Sky Gem collectible (attribute GemId)
 --   Waterfall    scrolling sheet part      SkyCloud big drifting cloud (casts moving shadows)
---   InfoBoard    SurfaceGui board          NpcSpot  where WorldLife puts a researcher
+--   InfoBoard    SurfaceGui board
 local CollectionService = game:GetService("CollectionService")
 local ServerStorage = game:GetService("ServerStorage")
 local Workspace = game:GetService("Workspace")
@@ -20,6 +20,8 @@ local Gen = require(script.Parent:WaitForChild("TerrainGen")) :: any
 local B = {}
 
 local kit = ServerStorage:WaitForChild("NatureKitParts")
+-- low-poly Blender kit (scripts/kit/kit.py): Models with Body (+ Snow / Glow), pivot at the bottom centre
+local WK = ServerStorage:WaitForChild("WorldKit")
 local rng = Random.new(20261121)
 local FREDOKA = Font.new("rbxasset://fonts/families/FredokaOne.json")
 local UP = CFrame.Angles(0, 0, math.pi / 2) -- cylinder axis X -> Y
@@ -147,66 +149,54 @@ local function text(gui: Instance, str: string, size: UDim2, pos: UDim2, color: 
 	return t
 end
 
--- ------------------------------------------------------------------ nature pieces
-local function kitPiece(name: string, at: Vector3, scale: number, yaw: number, parent: Instance, sink: number?): MeshPart
-	local p = (kit:WaitForChild(name) :: MeshPart):Clone()
-	p.Anchored = true
-	p.Size *= scale
-	p.CFrame = CFrame.new(at + Vector3.new(0, p.Size.Y / 2 - (sink or 0.3), 0)) * CFrame.Angles(0, yaw, 0)
-	p.Parent = parent
-	return p
+-- ------------------------------------------------------------------ nature pieces (WorldKit)
+-- One kit model, placed by its bottom-centre pivot, scaled and turned. Snow parts are tagged
+-- OnlyWinter in the kit, so every tree, bush, rock, roof and lamp gets its own winter shape.
+local function kitModel(name: string, cf: CFrame, scale: number, parent: Instance): Model
+	local m = (WK:WaitForChild(name) :: Model):Clone()
+	if math.abs(scale - 1) > 1e-3 then
+		m:ScaleTo(scale)
+	end
+	m:PivotTo(cf)
+	m.Parent = parent
+	return m
+end
+
+local function pick(list: { string }): string
+	return list[rng:NextInteger(1, #list)]
+end
+
+local function yawAt(at: Vector3, sink: number?): CFrame
+	return CFrame.new(at - Vector3.new(0, sink or 0.25, 0)) * CFrame.Angles(0, rng:NextNumber() * 6.28, 0)
+end
+
+-- old kitPiece names map onto the new kit (Bush / Flowers / Rock), with sizes matched to the old ones
+local function kitPiece(name: string, at: Vector3, scale: number, yaw: number, parent: Instance, sink: number?): Model
+	local cf = CFrame.new(at - Vector3.new(0, sink or 0.25, 0)) * CFrame.Angles(0, yaw, 0)
+	if name == "Bush" then
+		return kitModel(pick({ "Bush_A", "Bush_B", "Bush_C" }), cf, scale * 0.8, parent)
+	elseif name == "Flowers" then
+		return kitModel(pick({ "Flowers_A", "Flowers_B" }), cf, scale, parent)
+	end
+	return kitModel(pick({ "Rock_A", "Rock_B", "Rock_C", "Rock_D" }), cf, scale * 0.75, parent)
 end
 
 local function roundTree(at: Vector3, scale: number, parent: Instance)
-	local name = if rng:NextNumber() < 0.5 then "TreeA" else "TreeB"
-	local t = kitPiece(name, at, scale, rng:NextNumber() * 6.28, parent)
-	t.CastShadow = true
-	tag(t, "Foliage")
-	-- snow cap (winter)
-	local cap = ball("SnowCap", Vector3.new(t.Size.X * 0.86, t.Size.Y * 0.26, t.Size.Z * 0.86), CFrame.new(t.Position + Vector3.new(0, t.Size.Y * 0.42, 0)), C.snow, M.Snow, parent)
-	only(cap, "Winter")
+	return kitModel(pick({ "Oak_A", "Oak_A", "Oak_B", "Oak_C" }), yawAt(at), scale * rng:NextNumber(1.05, 1.3), parent)
 end
 
 local function pine(at: Vector3, s: number, parent: Instance)
-	local m = model("Pine", parent)
-	local trunk = cyl("Trunk", 4 * s, 1.2 * s, at + Vector3.new(0, 2 * s, 0), C.trunk, M.Wood, m)
-	trunk.CastShadow = true
-	local yaw = rng:NextNumber() * 1.57
-	for tier = 1, 3 do
-		local w = (8 - tier * 1.8) * s
-		local h = (4.6 - tier * 0.5) * s
-		local y = at.Y + (2.2 + (tier - 1) * 3.1) * s
-		for q = 0, 3 do
-			local rot = CFrame.Angles(0, yaw + q * math.pi / 2, 0)
-			local cw = part("Leaves", Vector3.new(w / 2, h, w / 2), CFrame.new(at.X, y + h / 2, at.Z) * rot * CFrame.new(w / 4, 0, -w / 4), if tier == 2 then C.leaf else C.leafDark, M.SmoothPlastic, m, "CornerWedgePart")
-			tag(cw, "Foliage")
-			if tier == 3 then
-				local snow = part("SnowCap", Vector3.new(w / 2 + 0.2, h * 0.55, w / 2 + 0.2), CFrame.new(at.X, y + h * 0.75, at.Z) * rot * CFrame.new(w / 4, 0, -w / 4) * CFrame.new(0, 0.05, 0), C.snow, M.Snow, m, "CornerWedgePart")
-				only(snow, "Winter")
-			end
-		end
-	end
-	return m
+	-- mostly full-size firs, with a few young ones (Fir_D) so groves read as grown, not stamped
+	local name = if rng:NextNumber() < 0.2 then "Fir_D" else pick({ "Fir_A", "Fir_B", "Fir_C" })
+	return kitModel(name, yawAt(at), s * rng:NextNumber(0.85, 1.1), parent)
 end
 
 local function palm(at: Vector3, s: number, parent: Instance)
-	local m = model("Palm", parent)
-	local lean = CFrame.Angles(math.rad(rng:NextNumber(-12, 12)), rng:NextNumber() * 6.28, math.rad(rng:NextNumber(-12, 12)))
-	local cf = CFrame.new(at) * lean
-	local seg = 2.4 * s
-	for i = 0, 4 do
-		local p = cyl("Trunk", seg, (1.3 - i * 0.12) * s, Vector3.zero, if i % 2 == 0 then C.trunk else hex("8E6440"), M.Wood, m)
-		p.CFrame = cf * CFrame.new(0, seg * (i + 0.5), 0) * CFrame.Angles(math.rad(i * 3), 0, 0) * UP
-		p.CastShadow = true
-	end
-	local top = cf * CFrame.new(0, seg * 5, 0)
-	for i = 0, 6 do
-		local leaf = part("Leaf", Vector3.new(1.6 * s, 0.35 * s, 6 * s), top * CFrame.Angles(0, i * math.pi * 2 / 7, 0) * CFrame.Angles(math.rad(-22), 0, 0) * CFrame.new(0, 0, -3 * s), C.leaf, M.SmoothPlastic, m, "WedgePart")
-		tag(leaf, "Foliage")
-		decor(leaf)
-	end
-	ball("Coconut", Vector3.one * 0.9 * s, top * CFrame.new(0.5 * s, -0.6 * s, 0), hex("6B4A2B"), M.SmoothPlastic, m)
-	return m
+	return kitModel(pick({ "Palm_A", "Palm_B" }), yawAt(at), s * 1.1, parent)
+end
+
+local function grassTuft(at: Vector3, parent: Instance)
+	return kitModel("Grass_A", yawAt(at, 0.1), rng:NextNumber(1, 1.8), parent)
 end
 
 local function cactus(at: Vector3, s: number, parent: Instance)
@@ -226,30 +216,22 @@ local function cactus(at: Vector3, s: number, parent: Instance)
 end
 
 local function rock(at: Vector3, s: number, parent: Instance)
-	local r = kitPiece("Rock", at, s, rng:NextNumber() * 6.28, parent, 0.3 * s)
-	r.CastShadow = true
-	return r
+	return kitPiece("Rock", at, s, rng:NextNumber() * 6.28, parent, 0.3 * s)
 end
 
 -- ------------------------------------------------------------------ lamps
 local function lamp(at: Vector3, parent: Instance)
-	local m = model("Lamp", parent)
-	cyl("Base", 0.6, 1.8, at + Vector3.new(0, 0.3, 0), C.trim, M.Metal, m)
-	cyl("Post", 8, 0.5, at + Vector3.new(0, 4.3, 0), C.trim, M.Metal, m)
-	part("Arm", Vector3.new(0.4, 0.4, 0.4), CFrame.new(at + Vector3.new(0, 8.4, 0)), C.trim, M.Metal, m)
-	local bulb = ball("Bulb", Vector3.one * 1.4, CFrame.new(at + Vector3.new(0, 9.1, 0)), C.warm, M.Neon, m)
-	decor(bulb)
-	tag(bulb, "Glow")
-	part("Cap", Vector3.new(1.8, 0.3, 1.8), CFrame.new(at + Vector3.new(0, 9.95, 0)), C.trim, M.Metal, m)
-	local light = Instance.new("PointLight")
-	light.Color = C.warm
-	light.Range = 16
-	light.Brightness = 0.6
-	light.Shadows = false
-	light.Parent = bulb
-	-- snow hat (winter)
-	local hat = part("SnowHat", Vector3.new(1.9, 0.35, 1.9), CFrame.new(at + Vector3.new(0, 10.25, 0)), C.snow, M.Snow, m)
-	only(hat, "Winter")
+	local m = kitModel("Lamp_A", CFrame.new(at) * CFrame.Angles(0, rng:NextNumber() * 6.28, 0), 1, parent)
+	m.Name = "Lamp"
+	local glass = m:FindFirstChild("Glow") :: BasePart?
+	if glass then
+		local light = Instance.new("PointLight")
+		light.Color = C.warm
+		light.Range = 18
+		light.Brightness = 0.7
+		light.Shadows = false
+		light.Parent = glass
+	end
 	return m
 end
 
@@ -300,6 +282,62 @@ local function board(name: string, at: Vector3, facing: Vector3, parent: Instanc
 	return m
 end
 
+-- ------------------------------------------------------------------ hub leaderboards
+-- Stand with a big screen; ServerScriptService.PocketWeather.Leaderboards fills Screen with the
+-- top 10 for the board's Stat (real saved stats only).
+local function leaderboard(stat: string, accent: Color3, at: Vector3, facing: Vector3, parent: Instance): Model
+	local m = model("Leaderboard_" .. stat, parent)
+	local cf = CFrame.lookAt(at, at + Vector3.new(facing.X, 0, facing.Z))
+	local W, Hs = 14, 17.7
+	-- stepped base
+	part("Step1", Vector3.new(W + 6, 0.8, 7), cf * CFrame.new(0, 0.4, 0), C.stoneDark, M.SmoothPlastic, m)
+	part("Step2", Vector3.new(W + 4, 0.8, 5), cf * CFrame.new(0, 1.2, 0), C.stone, M.SmoothPlastic, m)
+	local trimGlow = part("StepGlow", Vector3.new(W + 4.2, 0.2, 5.2), cf * CFrame.new(0, 1.65, 0), accent, M.Neon, m)
+	decor(trimGlow)
+	tag(trimGlow, "Glow")
+	-- pillars with caps and orbs
+	for side = -1, 1, 2 do
+		local pil = part("Pillar", Vector3.new(2, Hs + 4, 2), cf * CFrame.new(side * (W / 2 + 1), 1.6 + (Hs + 4) / 2, 0), C.stone, M.SmoothPlastic, m)
+		pil.CastShadow = true
+		part("PillarCap", Vector3.new(2.8, 0.8, 2.8), cf * CFrame.new(side * (W / 2 + 1), 2 + Hs + 4, 0), C.trim, M.Metal, m)
+		local orb = ball("PillarOrb", Vector3.one * 1.6, cf * CFrame.new(side * (W / 2 + 1), 3.3 + Hs + 4, 0), accent, M.Neon, m)
+		decor(orb)
+		tag(orb, "Glow")
+		local l = Instance.new("PointLight")
+		l.Color = accent
+		l.Range = 14
+		l.Brightness = 0.8
+		l.Shadows = false
+		l.Parent = orb
+		local snowCap = part("SnowCap", Vector3.new(2.9, 0.35, 2.9), cf * CFrame.new(side * (W / 2 + 1), 2.55 + Hs + 4, 0), C.snow, M.Snow, m)
+		only(snowCap, "Winter")
+	end
+	-- frame + screen
+	part("Frame", Vector3.new(W + 0.8, Hs + 0.8, 0.8), cf * CFrame.new(0, 2.4 + Hs / 2, 0.1), C.trim, M.Metal, m)
+	local screen = part("Screen", Vector3.new(W, Hs, 0.2), cf * CFrame.new(0, 2.4 + Hs / 2, -0.4), hex("1E2350"), M.SmoothPlastic, m)
+	decor(screen)
+	local glow = part("FrameGlow", Vector3.new(W + 1.2, 0.3, 1), cf * CFrame.new(0, 2.4 + Hs + 0.55, 0), accent, M.Neon, m)
+	decor(glow)
+	tag(glow, "Glow")
+	-- little gable roof with its winter snow
+	for side = -1, 1, 2 do
+		part("Roof", Vector3.new(W + 4, 1.6, 2), cf * CFrame.new(0, 3.9 + Hs + 0.8, side * 1) * CFrame.Angles(0, if side > 0 then math.pi else 0, 0), C.trim, M.SmoothPlastic, m, "WedgePart")
+		local sn = part("SnowRoof", Vector3.new(W + 4.1, 0.9, 2.05), cf * CFrame.new(0, 4.5 + Hs + 0.9, side * 1) * CFrame.Angles(0, if side > 0 then math.pi else 0, 0), C.snow, M.Snow, m, "WedgePart")
+		only(sn, "Winter")
+	end
+	-- uplight on the screen
+	local spot = Instance.new("SpotLight")
+	spot.Face = Enum.NormalId.Front
+	spot.Angle = 70
+	spot.Range = 14
+	spot.Brightness = 0.6
+	spot.Color = accent
+	spot.Parent = trimGlow
+	m:SetAttribute("Stat", stat)
+	tag(m, "Leaderboard")
+	return m
+end
+
 -- ------------------------------------------------------------------ weather tower
 local function buildTower(root: Instance)
 	local m = model("WeatherTower", root)
@@ -327,6 +365,31 @@ local function buildTower(root: Instance)
 	end
 	for _, y in { 12, 26, 40 } do
 		cyl("Collar", 2, 17, Vector3.new(0, y0 + y, 0), C.trim, M.Metal, m)
+		local band = cyl("CollarGlow", 0.35, 17.3, Vector3.new(0, y0 + y + 1.1, 0), C.neon, M.Neon, m)
+		decor(band)
+		tag(band, "TowerGlow")
+	end
+	-- stone plinth and buttresses: a wider, stepped base so the tower sits heavy on the plaza
+	cyl("Plinth", 5, 19, Vector3.new(0, y0 + 2.5, 0), C.stoneDark, M.SmoothPlastic, m)
+	cyl("PlinthCap", 0.8, 20.4, Vector3.new(0, y0 + 5.2, 0), C.trim, M.Metal, m)
+	for q = 0, 7 do
+		local a = q * math.pi / 4
+		local dir = Vector3.new(math.sin(a), 0, math.cos(a))
+		if q ~= 0 then -- q = 0 is the door side
+			local bt = part("Buttress", Vector3.new(1.6, 9, 4.4), CFrame.lookAt(dir * 10.4 + Vector3.new(0, y0 + 4.5, 0), dir * 30 + Vector3.new(0, y0 + 4.5, 0)), C.stone, M.SmoothPlastic, m, "WedgePart")
+			bt.CastShadow = true
+		end
+		-- vertical energy strip between the window columns
+		local strip = part("EnergyStrip", Vector3.new(0.6, H - 10, 0.4), CFrame.lookAt(dir * 7.55 + Vector3.new(0, y0 + 6 + (H - 10) / 2, 0), dir * 20 + Vector3.new(0, y0 + 6 + (H - 10) / 2, 0)), C.neon, M.Neon, m)
+		decor(strip)
+		strip.Transparency = 0.1
+		tag(strip, "TowerGlow")
+	end
+	-- corbels under the deck
+	for i = 0, 15 do
+		local a = i * math.pi * 2 / 16
+		local dir = Vector3.new(math.cos(a), 0, math.sin(a))
+		part("Corbel", Vector3.new(1.2, 2.4, 3.2), CFrame.lookAt(dir * 9.3 + Vector3.new(0, y0 + H - 1.4, 0), dir * 30 + Vector3.new(0, y0 + H - 1.4, 0)) * CFrame.Angles(0, 0, math.pi), C.trim, M.Metal, m, "WedgePart")
 	end
 	-- door (south, facing the spawn road and the plot bridges)
 	local door = part("Door", Vector3.new(5, 8, 1), CFrame.new(0, y0 + 4, 7.3), hex("2A3166"), M.SmoothPlastic, m)
@@ -353,6 +416,7 @@ local function buildTower(root: Instance)
 	-- orb on four arms
 	local orbC = Vector3.new(0, deckY + 14, 0)
 	local orbM = model("Orb", m)
+	orbM.ModelStreamingMode = Enum.ModelStreamingMode.Atomic -- symbols and rings arrive with the core
 	tag(orbM, "TowerOrb")
 	for q = 0, 3 do
 		local a = q * math.pi / 2
@@ -375,18 +439,50 @@ local function buildTower(root: Instance)
 	light.Color = hex("FFE27A")
 	light.Shadows = false
 	light.Parent = core
-	local bb = Instance.new("BillboardGui")
-	bb.Name = "Symbol"
-	bb.Size = UDim2.fromScale(15, 15) -- studs
-	bb.LightInfluence = 0
-	bb.MaxDistance = 2000
-	bb.Parent = core
-	local img = Instance.new("ImageLabel")
-	img.Name = "Icon"
-	img.BackgroundTransparency = 1
-	img.Size = UDim2.fromScale(1, 1)
-	img.ScaleType = Enum.ScaleType.Fit
-	img.Parent = bb
+	-- weather symbols inside the globe (WorldKit meshes); WeatherWorld shows the one for the theme
+	-- and spins it: Sunny = sun, Winter = snowflake, Storm = lightning bolt, Desert = wind swirl
+	for _, sd in { { "Default", "Sym_Sun", "FFD84A" }, { "Winter", "Sym_Snowflake", "8FEFFF" }, { "Storm", "Sym_Bolt", "C08CFF" }, { "Desert", "Sym_Wind", "FF9A3C" } } do
+		local sym = kitModel(sd[2], CFrame.new(orbC), 1.25, orbM)
+		sym.Name = "Symbol_" .. sd[1]
+		sym:SetAttribute("Theme", sd[1])
+		for _, sp in sym:GetDescendants() do
+			if sp:IsA("BasePart") then
+				sp.Color = hex(sd[3])
+				sp.Transparency = if sd[1] == "Default" then 0 else 1
+			end
+		end
+		tag(sym, "TowerSymbol")
+	end
+	-- energy rings around the globe (WeatherWorld turns them on tilted axes)
+	for k, rd in { { 0.92, 22, 0.8 }, { 1.12, -34, -0.55 }, { 1.3, 70, 0.35 } } do
+		local r = kitModel("GlobeRing", CFrame.new(orbC), rd[1], orbM)
+		r.Name = "EnergyRing" .. k
+		r:SetAttribute("Center", orbC)
+		r:SetAttribute("Tilt", rd[2])
+		r:SetAttribute("Speed", rd[3])
+		for _, rp in r:GetDescendants() do
+			if rp:IsA("BasePart") then
+				rp.Color = C.neon
+				rp.Transparency = 0.15
+				tag(rp, "TowerGlow")
+			end
+		end
+		tag(r, "TowerRing")
+	end
+	local swirl = Instance.new("ParticleEmitter")
+	swirl.Name = "Energy"
+	swirl.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	swirl.Rate = 14
+	swirl.Lifetime = NumberRange.new(1.5, 2.5)
+	swirl.Speed = NumberRange.new(0.5, 1.5)
+	swirl.SpreadAngle = Vector2.new(180, 180)
+	swirl.RotSpeed = NumberRange.new(-90, 90)
+	swirl.LightEmission = 1
+	swirl.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.3, 0.9), NumberSequenceKeypoint.new(1, 0) })
+	swirl.Color = ColorSequence.new(hex("7FE6FF"))
+	swirl.Shape = Enum.ParticleEmitterShape.Sphere
+	swirl.ShapeStyle = Enum.ParticleEmitterShapeStyle.Surface
+	swirl.Parent = glass
 	local sparkle = Instance.new("ParticleEmitter")
 	sparkle.Name = "Sparkle"
 	sparkle.Texture = "rbxasset://textures/particles/sparkles_main.dds"
@@ -399,8 +495,8 @@ local function buildTower(root: Instance)
 	sparkle.Color = ColorSequence.new(hex("FFF2B0"))
 	sparkle.Parent = core
 	-- orbit ring of small lights (spun by WeatherWorld)
-	local ringM = model("OrbitRing", orbM)
-	for i = 0, 15 do
+	local ringM = model("OrbitRing", orbM) -- kept empty: the WorldKit energy rings replaced the light bits
+	for i = 0, -1 do
 		local a = i * math.pi * 2 / 16
 		local b = part("Bit", Vector3.new(1.1, 1.1, 1.1), CFrame.new(orbC + Vector3.new(math.cos(a) * 14, math.sin(a * 2) * 1.2, math.sin(a) * 14)) * CFrame.Angles(0, -a, math.rad(45)), C.neon, M.Neon, ringM)
 		decor(b)
@@ -468,50 +564,17 @@ local function flag(at: Vector3, color: Color3, parent: Instance, height: number
 end
 
 -- ------------------------------------------------------------------ houses
-local function house(at: Vector3, facing: Vector3, roof: Color3, parent: Instance, name: string)
-	local m = model(name, parent)
-	local cf = CFrame.lookAt(at, at + facing)
-	local W, D, Hh = 14, 11, 8
-	part("Base", Vector3.new(W + 1, 1, D + 1), cf * CFrame.new(0, 0.5, 0), C.stoneDark, M.SmoothPlastic, m)
-	local walls = part("Walls", Vector3.new(W, Hh, D), cf * CFrame.new(0, 1 + Hh / 2, 0), hex("F3E7D0"), M.SmoothPlastic, m)
-	walls.CastShadow = true
-	for side = -1, 1, 2 do
-		part("Beam", Vector3.new(0.8, Hh, 0.8), cf * CFrame.new(side * W / 2, 1 + Hh / 2, -D / 2), C.wood, M.Wood, m)
-		part("Beam", Vector3.new(0.8, Hh, 0.8), cf * CFrame.new(side * W / 2, 1 + Hh / 2, D / 2), C.wood, M.Wood, m)
-	end
-	part("BeamTop", Vector3.new(W + 0.8, 0.8, 0.8), cf * CFrame.new(0, 1 + Hh, -D / 2), C.wood, M.Wood, m)
-	-- gabled roof (two wedges)
-	local rh = 5
-	for side = -1, 1, 2 do
-		local r = part("Roof", Vector3.new(W + 2, rh, D / 2 + 1), cf * CFrame.new(0, 1 + Hh + rh / 2, side * (D / 4 + 0.5)) * CFrame.Angles(0, if side > 0 then math.pi else 0, 0), roof, M.SmoothPlastic, m, "WedgePart")
-		r.CastShadow = true
-		local snow = part("SnowRoof", Vector3.new(W + 2.2, rh * 0.5, D / 2 + 1.2), cf * CFrame.new(0, 1 + Hh + rh * 0.78, side * (D / 4 + 0.5)) * CFrame.Angles(0, if side > 0 then math.pi else 0, 0), C.snow, M.Snow, m, "WedgePart")
-		only(snow, "Winter")
-	end
-	part("Chimney", Vector3.new(1.8, 4, 1.8), cf * CFrame.new(W / 3, 1 + Hh + 4, D / 5), hex("B65A47"), M.Brick, m)
-	-- door + windows (front = -Z of cf)
-	part("Door", Vector3.new(3, 5.2, 0.4), cf * CFrame.new(0, 3.6, -D / 2 - 0.2), C.woodDark, M.Wood, m)
-	for side = -1, 1, 2 do
-		local w = part("Window", Vector3.new(2.6, 2.4, 0.3), cf * CFrame.new(side * 4.3, 5, -D / 2 - 0.15), C.warm, M.Neon, m)
-		decor(w)
-		tag(w, "Glow")
-		part("Sill", Vector3.new(3.2, 0.4, 0.8), cf * CFrame.new(side * 4.3, 3.6, -D / 2 - 0.3), C.wood, M.Wood, m)
-		local wb = part("WindowBack", Vector3.new(2.6, 2.4, 0.3), cf * CFrame.new(side * 4.3, 5, D / 2 + 0.15), C.warm, M.Neon, m)
-		decor(wb)
-		tag(wb, "Glow")
-	end
-	local porch = part("PorchLight", Vector3.new(0.7, 0.7, 0.7), cf * CFrame.new(2.2, 6.8, -D / 2 - 0.5), C.warm, M.Neon, m)
-	decor(porch)
-	tag(porch, "Glow")
-	local pl = Instance.new("PointLight")
-	pl.Color = C.warm
-	pl.Range = 12
-	pl.Brightness = 0.5
-	pl.Parent = porch
-	-- icicles (winter)
-	for i = -3, 3 do
-		local ic = part("Icicle", Vector3.new(0.4, 1.4, 0.4), cf * CFrame.new(i * 2, 1 + Hh - 0.6, -D / 2 - 1.1), hex("D9F2FF"), M.Ice, m)
-		only(ic, "Winter")
+local function house(at: Vector3, facing: Vector3, variant: string, parent: Instance, name: string)
+	local m = kitModel(variant, CFrame.lookAt(at, at + Vector3.new(facing.X, 0, facing.Z)), 1.15, parent)
+	m.Name = name
+	local glow = m:FindFirstChild("Glow") :: BasePart?
+	if glow then
+		local pl = Instance.new("PointLight")
+		pl.Color = C.warm
+		pl.Range = 14
+		pl.Brightness = 0.5
+		pl.Shadows = false
+		pl.Parent = glow
 	end
 	return m
 end
@@ -671,7 +734,9 @@ function B.build(log: ((string) -> ())?)
 	for i, a in { 45, 135, 225, 315 } do
 		local r = math.rad(a)
 		local at = Vector3.new(math.cos(r) * 27, 1, math.sin(r) * 27)
-		board("PlazaBoard" .. i, at, -at, boards, if i % 2 == 0 then "tips" else "report")
+		if i <= 2 then -- two boards on the south side, facing out toward players coming in
+			board("PlazaBoard" .. i, at, at, boards, if i % 2 == 0 then "tips" else "report")
+		end
 		bench(Vector3.new(math.cos(r + 0.32) * 31, 1, math.sin(r + 0.32) * 31), -at, plaza)
 	end
 	-- planters (bush + flowers) around the tower
@@ -695,6 +760,52 @@ function B.build(log: ((string) -> ())?)
 	end
 	flag(Vector3.new(-6, 49.8, -6), hex("4FB8FF"), towerF, 7)
 	say("plaza")
+
+	-- leaderboard hub: paved ring around the tower, four boards, fountains, benches, trees ------
+	local hub = folder("Hub", map)
+	local floor = cyl("HubFloor", 0.3, 112, Vector3.new(0, 0.98, 0), hex("C3BCD3"), M.SmoothPlastic, hub)
+	floor.CastShadow = false
+	tag(floor, "HubFloor")
+	-- ring of darker tiles at r = 40 and a curb at the edge
+	for i = 0, 47 do
+		local a = i * math.pi * 2 / 48
+		local dir = Vector3.new(math.cos(a), 0, math.sin(a))
+		part("RingTile", Vector3.new(4.9, 0.32, 3), CFrame.lookAt(dir * 40 + Vector3.new(0, 1.02, 0), dir * 80 + Vector3.new(0, 1.02, 0)), if i % 2 == 0 then hex("9F98B6") else hex("8F88A8"), M.SmoothPlastic, hub)
+		local isPath = (i % 12 == 0) or (i % 12 == 1) or (i % 12 == 11)
+		if not isPath then
+			part("Curb", Vector3.new(7.2, 0.9, 1.4), CFrame.lookAt(dir * 56 + Vector3.new(0, 1.2, 0), dir * 80 + Vector3.new(0, 1.2, 0)), hex("9C95B5"), M.SmoothPlastic, hub)
+		end
+	end
+	for _, b in { { "Gust", hex("7AD7FF"), 225 }, { "Coins", hex("FFD23F"), 315 }, { "Clouds", hex("F2F4FA"), 135 }, { "Upgrades", hex("B98CFF"), 45 } } do
+		local a = math.rad(b[3])
+		local dir = Vector3.new(math.cos(a), 0, math.sin(a))
+		leaderboard(b[1], b[2], dir * 47 + Vector3.new(0, 1, 0), -dir, hub)
+		-- benches facing the board, lamps and flower beds beside it
+		local side = Vector3.new(-dir.Z, 0, dir.X)
+		for sgn = -1, 1, 2 do
+			bench(dir * 38 + side * sgn * 4 + Vector3.new(0, 1, 0), dir, hub)
+			kitPiece("Flowers", dir * 50 + side * sgn * 13 + Vector3.new(0, 1, 0), 1.5, rng:NextNumber() * 6.28, hub)
+			kitPiece("Bush", dir * 52 + side * sgn * 16 + Vector3.new(0, 1, 0), 1.5, rng:NextNumber() * 6.28, hub)
+		end
+	end
+	-- two fountains flanking the tower (east / west)
+	fountain(Vector3.new(31, 1, 0), hub, 5)
+	fountain(Vector3.new(-31, 1, 0), hub, 5)
+	-- trees ring just outside the floor, clear of the four paths
+	for i = 0, 7 do
+		local a = math.rad(22.5 + i * 45)
+		local dir = Vector3.new(math.cos(a), 0, math.sin(a))
+		roundTree(dir * 62 + Vector3.new(0, groundAt(dir.X * 62, dir.Z * 62), 0), 1.05, hub)
+		grassTuft(dir * 59 + Vector3.new(2, 1, 0), hub)
+	end
+	for _, a in { 0, 90, 180, 270 } do
+		local r = math.rad(a)
+		local dir = Vector3.new(math.cos(r), 0, math.sin(r))
+		local side = Vector3.new(-dir.Z, 0, dir.X)
+		flag(dir * 57 + side * 7 + Vector3.new(0, 1, 0), hex("4FB8FF"), hub, 9)
+		flag(dir * 57 - side * 7 + Vector3.new(0, 1, 0), hex("FFD23F"), hub, 9)
+	end
+	say("hub")
 
 	-- path lamps ---------------------------------------------------------------
 	local function lampLine(from: Vector3, to: Vector3, every: number, side: Vector3)
@@ -732,10 +843,19 @@ function B.build(log: ((string) -> ())?)
 
 	-- village (west) -------------------------------------------------------------
 	local village = folder("Village", map)
-	house(Vector3.new(-72, 1, -24), Vector3.new(0, 0, 1), hex("C8553F"), village, "HouseRed")
-	house(Vector3.new(-104, 1, -26), Vector3.new(0.3, 0, 1), hex("3E7EA6"), village, "HouseBlue")
-	house(Vector3.new(-78, 1, 26), Vector3.new(0, 0, -1), hex("6B9E4F"), village, "HouseGreen")
-	house(Vector3.new(-108, 1, 28), Vector3.new(0.3, 0, -1), hex("D08A2E"), village, "HouseOrange")
+	house(Vector3.new(-72, 1, -24), Vector3.new(0, 0, 1), "House_A", village, "HouseRed")
+	house(Vector3.new(-104, 1, -26), Vector3.new(0.3, 0, 1), "House_B", village, "HouseBlue")
+	house(Vector3.new(-78, 1, 26), Vector3.new(0, 0, -1), "House_C", village, "HouseGreen")
+	house(Vector3.new(-108, 1, 28), Vector3.new(0.3, 0, -1), "House_D", village, "HouseOrange")
+	-- village dressing: flower beds by the doors, a fir behind each pair
+	for _, d in { { -72, -14 }, { -104, -16 }, { -78, 16 }, { -108, 18 } } do
+		kitPiece("Flowers", Vector3.new(d[1] + 5, 1, d[2]), 1.2, rng:NextNumber() * 6.28, village)
+		kitPiece("Bush", Vector3.new(d[1] - 6, 1, d[2]), 1.4, rng:NextNumber() * 6.28, village)
+	end
+	pine(Vector3.new(-88, 1, -40), 1.1, village)
+	pine(Vector3.new(-120, 1, -38), 0.9, village)
+	pine(Vector3.new(-92, 1, 42), 1.0, village)
+	roundTree(Vector3.new(-124, 1, 40), 1, village)
 	fountain(Vector3.new(-90, 1, 0), village, 7)
 	flag(Vector3.new(-60, 1, 10), hex("FF6F90"), village)
 	flag(Vector3.new(-60, 1, -10), hex("FFD23F"), village)
@@ -757,72 +877,29 @@ function B.build(log: ((string) -> ())?)
 	cyl("RainGauge", 3, 1.4, Vector3.new(-60, 2.5, -44), hex("D6EEFF"), M.Glass, station)
 	say("village")
 
-	-- spawn island + grand bridge ---------------------------------------------
+	-- east islet (old spawn island): a quiet lookout with a fountain - no gate, no spawn -------
 	local spawnF = folder("SpawnIsland", map)
 	local SI = Gen.SPAWN_ISLAND
-	local gate = model("WelcomeGate", spawnF)
-	local gx = SI.X - 16 -- on the flat top (radius 24), the bridge lands just behind it
-	for side = -1, 1, 2 do
-		local pil = part("Pillar", Vector3.new(4, 16, 4), CFrame.new(gx, 1 + 8, side * 10), C.stone, M.SmoothPlastic, gate)
-		pil.CastShadow = true
-		part("PillarCap", Vector3.new(5, 1.2, 5), CFrame.new(gx, 1 + 16.6, side * 10), C.trim, M.Metal, gate)
-		local g = part("PillarGlow", Vector3.new(4.3, 0.5, 4.3), CFrame.new(gx, 1 + 3, side * 10), C.neon, M.Neon, gate)
-		decor(g)
-		tag(g, "TowerGlow")
-		local e = Instance.new("ParticleEmitter")
-		e.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-		e.Rate = 6
-		e.Lifetime = NumberRange.new(1.5, 2.5)
-		e.Speed = NumberRange.new(1, 3)
-		e.SpreadAngle = Vector2.new(30, 30)
-		e.LightEmission = 1
-		e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0) })
-		e.Color = ColorSequence.new(C.neon)
-		e.Parent = g
-	end
-	local sign = part("Sign", Vector3.new(3, 6, 26), CFrame.new(gx, 1 + 19.5, 0), C.trim, M.SmoothPlastic, gate)
-	sign.CastShadow = true
-	local snowSign = part("SnowSign", Vector3.new(3.2, 0.6, 26.2), CFrame.new(gx, 1 + 22.8, 0), C.snow, M.Snow, gate)
-	only(snowSign, "Winter")
-	for _, face in { Enum.NormalId.Right, Enum.NormalId.Left } do
-		local sg = Instance.new("SurfaceGui")
-		sg.Face = face
-		sg.CanvasSize = Vector2.new(1040, 240)
-		sg.LightInfluence = 0
-		sg.Brightness = 1.3
-		sg.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
-		sg.Parent = sign
-		local bg = Instance.new("Frame")
-		bg.Size = UDim2.fromScale(1, 1)
-		bg.BackgroundColor3 = Color3.new(1, 1, 1)
-		bg.BorderSizePixel = 0
-		bg.Parent = sg
-		local gr = Instance.new("UIGradient")
-		gr.Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, hex("4FB8FF")), ColorSequenceKeypoint.new(1, hex("7A5CFF")) })
-		gr.Rotation = 90
-		gr.Parent = bg
-		local t = text(bg, if face == Enum.NormalId.Right then "POCKET WEATHER" else "HAVE FUN!", UDim2.new(1, -40, 0.72, 0), UDim2.new(0, 20, 0.06, 0))
-		local tg = Instance.new("UIGradient")
-		tg.Color = ColorSequence.new({ ColorSequenceKeypoint.new(0, hex("FFF7B0")), ColorSequenceKeypoint.new(1, hex("FFD23F")) })
-		tg.Rotation = 90
-		tg.Parent = t
-		local st = t:FindFirstChildOfClass("UIStroke")
-		if st then
-			st.Thickness = 8
-		end
-		text(bg, if face == Enum.NormalId.Right then "catch the weather!" else "see you soon", UDim2.new(1, -40, 0.2, 0), UDim2.new(0, 20, 0.76, 0), hex("E8F6FF"))
-	end
-	fountain(Vector3.new(SI.X + 14, 1, 0), spawnF, 6)
+	fountain(Vector3.new(SI.X + 6, 1, 0), spawnF, 6)
 	for _, p in { Vector3.new(SI.X - 6, 1, 18), Vector3.new(SI.X - 6, 1, -18), Vector3.new(SI.X + 16, 1, 16), Vector3.new(SI.X + 16, 1, -16) } do
 		lamp(p, lamps)
+	end
+	for k = 0, 3 do
+		local a = k * math.pi / 2 + math.pi / 4
+		bench(Vector3.new(SI.X + 6 + math.cos(a) * 11, 1, math.sin(a) * 11), -Vector3.new(math.cos(a), 0, math.sin(a)), spawnF)
 	end
 	board("SpawnBoard", Vector3.new(SI.X - 4, 1, -20), Vector3.new(-0.8, 0, 1), boards, "howto")
 	flag(Vector3.new(SI.X + 4, 1, 22), hex("7A5CFF"), spawnF)
 	flag(Vector3.new(SI.X + 4, 1, -22), hex("4FB8FF"), spawnF)
-	-- spawn location (players first spawn here facing the tower)
+	for _, fp in { Vector3.new(SI.X - 12, 1, 8), Vector3.new(SI.X - 12, 1, -8), Vector3.new(SI.X + 18, 1, 4) } do
+		kitPiece("Flowers", fp, 1.3, rng:NextNumber() * 6.28, spawnF)
+		kitPiece("Bush", fp + Vector3.new(2.5, 0, 2), 1.2, rng:NextNumber() * 6.28, spawnF)
+	end
+	-- fallback spawn (players without an island) sits on the hub's south side, facing the tower;
+	-- everyone else spawns on their own island (Plots.spawnCFrame)
 	local sp = Workspace:FindFirstChild("SpawnLocation") :: SpawnLocation?
 	if sp then
-		sp.CFrame = CFrame.new(SI.X - 4, 1.1, 0) * CFrame.Angles(0, math.rad(90), 0)
+		sp.CFrame = CFrame.new(0, 1.1, 62) * CFrame.Angles(0, 0, 0)
 		sp.Size = Vector3.new(10, 0.4, 10)
 		sp.Transparency = 1
 		sp.CanCollide = false
@@ -905,8 +982,8 @@ function B.build(log: ((string) -> ())?)
 		if math.abs(x) < 112 and z > 122 then
 			return false -- plot bridges strip
 		end
-		if math.sqrt(x * x + z * z) < 46 then
-			return false -- plaza
+		if math.sqrt(x * x + z * z) < 66 then
+			return false -- hub
 		end
 		local y = groundAt(x, z)
 		return y > Gen.SEA_Y + 2
@@ -981,8 +1058,7 @@ function B.build(log: ((string) -> ())?)
 			if roll < 0.35 then
 				kitPiece("Flowers", Vector3.new(x, y, z), rng:NextNumber(1, 1.6), rng:NextNumber() * 6.28, nature)
 			elseif roll < 0.7 then
-				local b = kitPiece("Bush", Vector3.new(x, y, z), rng:NextNumber(1.3, 2.2), rng:NextNumber() * 6.28, nature)
-				tag(b, "Foliage")
+				kitPiece("Bush", Vector3.new(x, y, z), rng:NextNumber(1.3, 2.2), rng:NextNumber() * 6.28, nature)
 			else
 				rock(Vector3.new(x, y, z), rng:NextNumber(1.5, 3.5), nature)
 			end
@@ -994,6 +1070,17 @@ function B.build(log: ((string) -> ())?)
 		local z = Gen.TIER1_Z + rng:NextNumber(4, 14)
 		if freeSpot(x, z) then
 			rock(Vector3.new(x, groundAt(x, z), z), rng:NextNumber(3, 6), nature)
+		end
+	end
+	-- grass tufts: small clumps around trees and along the cliff feet, never in the open field
+	for _ = 1, 220 do
+		local x, z = rng:NextNumber(-200, 200), rng:NextNumber(-250, 160)
+		local edge = math.max(math.abs(x) / 120, math.abs(z) / 110)
+		if edge > 0.75 and freeSpot(x, z) then
+			local y = groundAt(x, z)
+			for k = 1, rng:NextInteger(2, 4) do
+				grassTuft(Vector3.new(x + rng:NextNumber(-2.5, 2.5), y, z + rng:NextNumber(-2.5, 2.5)), nature)
+			end
 		end
 	end
 	say("nature " .. placed)
@@ -1008,7 +1095,7 @@ function B.build(log: ((string) -> ())?)
 	end
 	-- winter extras: snowmen
 	local winter = folder("Winter", themeProps)
-	for _, p in { Vector3.new(-84, 1, 14), Vector3.new(SI.X - 2, 1, 14), Vector3.new(30, 1, -44) } do
+	for _, p in { Vector3.new(-84, 1, 14), Vector3.new(SI.X - 2, 1, 14), Vector3.new(14, 1, -70) } do
 		local m = model("Snowman", winter)
 		for k, s in { 4, 3, 2.2 } do
 			local b = ball("Snow" .. k, Vector3.one * s, CFrame.new(p + Vector3.new(0, ({ 2, 5.2, 7.6 })[k], 0)), C.snow, M.Snow, m)
@@ -1060,21 +1147,6 @@ function B.build(log: ((string) -> ())?)
 	do
 		local x, z = 186, 112
 		gem(6, Vector3.new(x, groundAt(x, z), z), gems) -- east plateau, among the trees
-	end
-
-	-- NPC spots ----------------------------------------------------------------------
-	local npcs = folder("NpcSpots", map)
-	local spots = {
-		{ "Dr. Drizzle", Vector3.new(-14, 1.2, 38), Vector3.new(0, 0, 1) },
-		{ "Prof. Gale", Vector3.new(-66, 1.2, 4), Vector3.new(1, 0, 0) },
-		{ "Sunny Sam", Vector3.new(SI.X - 8, 1.2, -11), Vector3.new(-0.2, 0, 1) },
-	}
-	for _, s in spots do
-		local p = part("Spot", Vector3.new(2, 0.2, 2), CFrame.lookAt(s[2], s[2] + s[3]), Color3.new(1, 1, 1), M.SmoothPlastic, npcs)
-		p.Transparency = 1
-		decor(p)
-		p:SetAttribute("NpcName", s[1])
-		tag(p, "NpcSpot")
 	end
 
 	-- big sky clouds (drift slowly, cast moving shadows) ------------------------------

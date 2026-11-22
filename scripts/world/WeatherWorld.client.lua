@@ -217,6 +217,28 @@ tagged("Foliage", function(p)
 	tintFoliage(p, true)
 end)
 
+-- hub paving: snowed over in winter, sandy in the desert, wet and dark in storms
+local HUB_FLOOR: { [string]: Color3 } = {
+	Default = Color3.fromHex("C3BCD3"),
+	Winter = Color3.fromHex("EEF3FA"),
+	Desert = Color3.fromHex("E2CFA6"),
+	Storm = Color3.fromHex("8F89A6"),
+}
+local function paintHubFloor(p: Instance, instant: boolean)
+	if not p:IsA("BasePart") then
+		return
+	end
+	local target = HUB_FLOOR[currentTheme] or HUB_FLOOR.Default
+	if instant then
+		p.Color = target
+	else
+		tween(p, 4, { Color = target })
+	end
+end
+tagged("HubFloor", function(p)
+	paintHubFloor(p, true)
+end)
+
 -- part-built ground (player islands): takes the theme's grass colour
 local function paintGround(p: Instance, instant: boolean)
 	if not p:IsA("BasePart") then
@@ -261,12 +283,24 @@ task.spawn(function()
 end)
 
 -- ======================================================================= weather tower orb
-type Orb = { core: BasePart, light: PointLight?, icon: ImageLabel?, sparkle: ParticleEmitter?, ring: { BasePart }, offsets: { CFrame }, center: Vector3 }
+type Spinner3 = { part: BasePart, offset: CFrame, tilt: number, speed: number }
+type Orb = { core: BasePart, light: PointLight?, icon: ImageLabel?, sparkle: ParticleEmitter?, ring: { BasePart }, offsets: { CFrame }, center: Vector3, symbols: { [string]: { BasePart } }, energy: { Spinner3 } }
 local orbs: { Orb } = {}
 local function paintOrb(o: Orb, instant: boolean)
 	local look = Themes[currentTheme]
 	if o.icon then
 		o.icon.Image = Icons[look.icon] or ""
+	end
+	-- the globe's 3D weather symbol: sun / snowflake / lightning / wind
+	for theme, parts in o.symbols do
+		local target = if theme == currentTheme then 0 else 1
+		for _, sp in parts do
+			if instant then
+				sp.Transparency = target
+			else
+				tween(sp, 1.2, { Transparency = target })
+			end
+		end
 	end
 	if instant then
 		o.core.Color = look.orb
@@ -299,6 +333,31 @@ tagged("TowerOrb", function(m)
 		end
 	end
 	local symbol = core:FindFirstChild("Symbol")
+	local symbols: { [string]: { BasePart } } = {}
+	local energy: { Spinner3 } = {}
+	for _, child in m:GetChildren() do
+		local theme = child:GetAttribute("Theme")
+		if child:IsA("Model") and type(theme) == "string" then
+			local parts = {}
+			for _, d in child:GetDescendants() do
+				if d:IsA("BasePart") then
+					table.insert(parts, d)
+				end
+			end
+			symbols[theme] = parts
+		elseif child:IsA("Model") and child:GetAttribute("Tilt") ~= nil then
+			for _, d in child:GetDescendants() do
+				if d:IsA("BasePart") then
+					table.insert(energy, {
+						part = d,
+						offset = CFrame.new(c):ToObjectSpace(d.CFrame),
+						tilt = math.rad(tonumber(child:GetAttribute("Tilt")) or 0),
+						speed = tonumber(child:GetAttribute("Speed")) or 0.5,
+					})
+				end
+			end
+		end
+	end
 	local o: Orb = {
 		core = core,
 		light = core:FindFirstChildOfClass("PointLight"),
@@ -307,6 +366,8 @@ tagged("TowerOrb", function(m)
 		ring = ring,
 		offsets = offsets,
 		center = c,
+		symbols = symbols,
+		energy = energy,
 	}
 	table.insert(orbs, o)
 	paintOrb(o, true)
@@ -509,6 +570,14 @@ local snow = emitter(skyHost, {
 	EmissionDirection = Enum.NormalId.Bottom, SpreadAngle = Vector2.new(25, 25), Drag = 0.8,
 	WindAffectsDrag = true, Rotation = NumberRange.new(0, 360), RotSpeed = NumberRange.new(-60, 60),
 	Transparency = ns(0, 1, 0.1, 0.05, 0.85, 0.1, 1, 1), LightEmission = 0.25, LightInfluence = 0.6,
+})
+-- big soft flakes drifting right in front of the camera (depth for the winter snowfall)
+local snowNear = emitter(nearHost, {
+	Name = "SnowNear", Texture = TEX.snowflake, Color = ColorSequence.new(Color3.new(1, 1, 1)),
+	Size = ns(0, 0.9, 1, 0.7), Lifetime = NumberRange.new(3, 4), Speed = NumberRange.new(2.5, 4.5),
+	EmissionDirection = Enum.NormalId.Bottom, SpreadAngle = Vector2.new(35, 35), Drag = 0.6,
+	WindAffectsDrag = true, Rotation = NumberRange.new(0, 360), RotSpeed = NumberRange.new(-40, 40),
+	Transparency = ns(0, 1, 0.15, 0.15, 0.8, 0.25, 1, 1), LightEmission = 0.35, LightInfluence = 0.5,
 })
 local sand = emitter(airHost, {
 	Name = "SandSheets", Texture = TEX.smoke, Color = ColorSequence.new(Color3.fromRGB(232, 182, 120)),
@@ -790,18 +859,7 @@ task.spawn(function()
 	end
 end)
 
--- ======================================================================= NPC speech, gem toast
-local NpcTalk = remotes:WaitForChild("NpcTalk", 30) :: RemoteEvent?
-if NpcTalk then
-	NpcTalk.OnClientEvent:Connect(function(head: Instance, line: string)
-		if head and head:IsA("BasePart") and type(line) == "string" then
-			pcall(function()
-				TextChatService:DisplayBubble(head, line)
-			end)
-		end
-	end)
-end
-
+-- ======================================================================= gem toast
 local toastGui = Instance.new("ScreenGui")
 toastGui.Name = "WorldToast"
 toastGui.ResetOnSpawn = false
@@ -866,6 +924,9 @@ local function setTheme(name: string, instant: boolean)
 	for _, p in CollectionService:GetTagged("ThemeGround") do
 		paintGround(p, instant)
 	end
+	for _, p in CollectionService:GetTagged("HubFloor") do
+		paintHubFloor(p, instant)
+	end
 	for _, o in orbs do
 		paintOrb(o, instant)
 	end
@@ -911,6 +972,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 		rainFar.Rate = RAIN_MAX * fx.rain
 		rainNear.Rate = RAIN_NEAR_MAX * fx.rain
 		snow.Rate = SNOW_MAX * fx.snow
+		snowNear.Rate = 45 * fx.snow
 		sand.Rate = SAND_MAX * fx.sand
 		grains.Rate = GRAIN_MAX * fx.sand
 		motes.Rate = MOTE_MAX * fx.motes
@@ -948,8 +1010,23 @@ RunService.RenderStepped:Connect(function(dt: number)
 			table.insert(orbParts, b)
 			table.insert(orbCFs, spin * o.offsets[i])
 		end
+		-- energy rings turn on tilted axes; the active symbol spins and bobs
+		for k, e in o.energy do
+			table.insert(orbParts, e.part)
+			table.insert(orbCFs, CFrame.new(o.center) * CFrame.Angles(e.tilt, k * 0.9, 0) * CFrame.Angles(0, t * e.speed, 0) * e.offset)
+		end
+		-- the symbol turns to face this player's camera (readable from every side), with a gentle sway
+		local camPos = if cam then cam.CFrame.Position else o.center + Vector3.zAxis
+		local flat = Vector3.new(camPos.X, o.center.Y, camPos.Z)
+		local bob = CFrame.lookAt(o.center, if (flat - o.center).Magnitude > 0.1 then flat else o.center + Vector3.zAxis) * CFrame.new(0, math.sin(t * 1.6) * 0.5, 0) * CFrame.Angles(0, math.pi + math.sin(t * 1.3) * 0.45, 0)
+		for _, parts in o.symbols do
+			for _, sp in parts do
+				table.insert(orbParts, sp)
+				table.insert(orbCFs, bob)
+			end
+		end
 		Workspace:BulkMoveTo(orbParts, orbCFs, Enum.BulkMoveMode.FireCFrameChanged)
-		o.core.Size = Vector3.one * (7 + math.sin(t * 2.2) * 0.4)
+		o.core.Size = Vector3.one * (if next(o.symbols) then 4.6 + math.sin(t * 2.2) * 0.3 else 7 + math.sin(t * 2.2) * 0.4)
 	end
 	-- turbines and the anemometer (faster in strong wind)
 	local windK = math.clamp(shown.wind.Magnitude / 8, 0.4, 3)
