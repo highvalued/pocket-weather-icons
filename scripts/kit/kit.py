@@ -41,14 +41,14 @@ def jit(rng, c, a=0.05):
 # ---------------------------------------------------------------- palette (sRGB)
 BARK = [hx("#7A4A2A"), hx("#6B3F23"), hx("#86553A")]
 BARK_DARK = hx("#553219")
-FIR = [hx("#1F6B4A"), hx("#2A8257"), hx("#3C9A62"), hx("#5BB56E")]   # dark .. light
-FIR_TIP = hx("#79C97A")
+FIR = [hx("#2B7A50"), hx("#379461"), hx("#4BAE6C"), hx("#6CC87A")]   # dark .. light
+FIR_TIP = hx("#8EDB86")
 OAK = [hx("#3E8E3A"), hx("#5DAE45"), hx("#86C957")]
 OAK2 = [hx("#2F8A4E"), hx("#4CAB5C"), hx("#7FCB6E")]
 BUSH = [hx("#3A8F45"), hx("#55AB52"), hx("#7AC461")]
 SNOW = hx("#F5F8FD")
 SNOW_SH = hx("#D7E3F3")
-ROCK = [hx("#7D7896"), hx("#8F8AA8"), hx("#A6A2BE"), hx("#BAB6CF")]
+ROCK = [hx("#85828F"), hx("#99969F"), hx("#B0ADB5"), hx("#C6C3C9")]
 MOSS = hx("#6FAF55")
 STONE = [hx("#B7B2C8"), hx("#A39EB6"), hx("#C8C4D6")]
 PLASTER = [hx("#F4EAD6"), hx("#EFE2C9")]
@@ -65,7 +65,7 @@ GLOW = hx("#FFF2D0")
 IRON = hx("#2E3459")
 BRASS = hx("#D9A945")
 DIRT = [hx("#8A6343"), hx("#7A5638"), hx("#946B48")]
-CLIFF = [hx("#857F9E"), hx("#736E8E"), hx("#9893B0"), hx("#6A6585")]
+CLIFF = [hx("#8C8796"), hx("#7A7585"), hx("#A09BA8"), hx("#6E6A78")]
 GRASS_TOP = [hx("#FFFFFF"), hx("#EEF3EE"), hx("#F7FBF4")]  # tinted in Studio
 FLOWER = [hx("#FF6FA8"), hx("#FFD23F"), hx("#FFFFFF"), hx("#B98CFF"), hx("#FF8A4A")]
 
@@ -481,7 +481,7 @@ def grass(name, seed, n=11):
         side = Vector((-math.sin(a), math.cos(a), 0)) * 0.14
         tip = base + lean + Vector((0, 0, h))
         body.add([base - side, base + side, tip, base + Vector((math.cos(a), math.sin(a), 0)) * 0.06], [(0, 1, 2), (1, 3, 2), (3, 0, 2)],
-                 lambda c, nrm, co: mix(hx("#3E8E3A"), hx("#8ED16A"), max(0, min(1, co.z / 1.4))))
+                 lambda c, nrm, co: mix(hx("#5DAE4A"), hx("#A6E07A"), max(0, min(1, co.z / 1.4))))
     register(name, body.to_object(), "Body")
 
 
